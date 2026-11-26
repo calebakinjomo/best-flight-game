@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aeroridge — Canyon Run</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0a1626;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  .panel { position: fixed; z-index: 5; color: #e8f2ff; background: rgba(8, 18, 32, 0.62);
+    border: 1px solid rgba(140, 190, 255, 0.45); border-radius: 10px; padding: 10px 14px;
+    backdrop-filter: blur(2px); box-shadow: 0 0 18px rgba(80, 160, 255, 0.25); }
+  .panel .label { font-size: 10px; letter-spacing: 2px; color: #9fc3e8; }
+  .panel .value { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums;
+    color: #ffffff; text-shadow: 0 0 12px rgba(120, 200, 255, 0.9); }
+  .panel .sub { font-size: 12px; color: #cfe4ff; }
+  #hudLeft { top: 14px; left: 14px; display: flex; gap: 22px; }
+  #hudRight { top: 14px; right: 14px; text-align: right; }
+  #hudRight .row { margin: 2px 0; }
+  #hudRight .value { font-size: 20px; }
+  #fuelBar { width: 150px; height: 8px; background: rgba(255,255,255,0.18); border-radius: 4px;
+    margin-top: 4px; overflow: hidden; display: inline-block; vertical-align: middle; }
+  #fuelFill { height: 100%; width: 100%; background: #37d67a; border-radius: 4px; }
+  #fuelFill.low { background: #ff5347; }
+  #hudBottom { left: 14px; bottom: 14px; display: flex; gap: 14px; align-items: flex-end; padding: 10px; }
+  #horizon { width: 170px; height: 170px; border-radius: 50%; border: 2px solid rgba(160, 200, 255, 0.6); }
+  .gaugeBox { text-align: center; }
+  .gaugeBox .label { font-size: 10px; letter-spacing: 2px; color: #9fc3e8; }
+  #throttleBar { width: 18px; height: 150px; background: rgba(255,255,255,0.15); border-radius: 6px;
+    margin: 4px auto 0; position: relative; overflow: hidden; }
+  #throttleFill { position: absolute; bottom: 0; left: 0; right: 0; height: 50%;
+    background: linear-gradient(#ffd34d, #ff8c1a); }
+  #compass { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 5;
+    border: 1px solid rgba(140, 190, 255, 0.45); border-radius: 8px; }
+  #banner { position: fixed; top: 88px; left: 50%; transform: translateX(-50%); z-index: 6;
+    font-size: 22px; font-weight: 800; letter-spacing: 1px; color: #ffe9a8;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.8), 0 0 24px rgba(255, 180, 60, 0.7);
+    opacity: 0; transition: opacity 0.3s; pointer-events: none; white-space: nowrap; }
+  #banner.show { opacity: 1; }
+  #warn { position: fixed; top: 130px; left: 50%; transform: translateX(-50%); z-index: 6;
+    font-size: 20px; font-weight: 800; color: #ff6b5e;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.9); pointer-events: none; white-space: nowrap; }
+  .overlay { position: fixed; inset: 0; z-index: 10; display: none; align-items: center;
+    justify-content: center; background: rgba(4, 10, 20, 0.55); color: #eef5ff; text-align: center; }
+  .overlay.show { display: flex; }
+  .card { max-width: 640px; padding: 34px 44px; background: rgba(8, 20, 38, 0.88);
+    border: 1px solid rgba(140, 190, 255, 0.5); border-radius: 16px;
+    box-shadow: 0 0 40px rgba(60, 140, 255, 0.35); }
+  .card h1 { margin: 0 0 4px; font-size: 44px; letter-spacing: 2px; color: #ffd34d;
+    text-shadow: 0 0 26px rgba(255, 180, 60, 0.6); }
+  .card h2 { margin: 0 0 10px; font-size: 32px; color: #ffd34d; }
+  .card .tag { font-size: 15px; letter-spacing: 3px; color: #9fc3e8; margin-bottom: 14px; }
+  .card p { font-size: 16px; line-height: 1.55; color: #d8e8ff; margin: 10px 0; }
+  .card .controls { font-size: 14px; line-height: 1.9; background: rgba(255,255,255,0.06);
+    border-radius: 10px; padding: 10px 16px; margin: 14px 0; text-align: left; }
+  .card .controls b { color: #ffd34d; }
+  .card button { margin-top: 12px; font-size: 20px; font-weight: 800; letter-spacing: 1px;
+    color: #10233a; background: linear-gradient(#ffd34d, #ff9d1a); border: none; border-radius: 10px;
+    padding: 14px 38px; cursor: pointer; box-shadow: 0 4px 18px rgba(255, 160, 40, 0.5); }
+  .card button:hover { filter: brightness(1.1); }
+  .card .score { font-size: 20px; font-weight: 700; color: #ffffff; }
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="Aeroridge Canyon Run: fly the plane through the rings and land on the runway"></canvas>
+
+<div id="hudLeft" class="panel">
+  <div><div class="label">ALTITUDE</div><div class="value" id="alt">0 FT</div><div class="sub" id="vsi">+0 FPM</div></div>
+  <div><div class="label">AIRSPEED</div><div class="value" id="spd">0 KT</div><div class="sub">STALL 82 KT</div></div>
+  <div><div class="label">HEADING</div><div class="value" id="hdg">000° N</div><div class="sub">MAGNETIC</div></div>
+</div>
+
+<div id="hudRight" class="panel">
+  <div class="row"><span class="label">SCORE&nbsp;&nbsp;</span><span class="value" id="score">0</span></div>
+  <div class="row"><span class="label">RINGS&nbsp;&nbsp;</span><span class="value" id="rings">0 / 11</span></div>
+  <div class="row"><span class="label">TIME&nbsp;&nbsp;</span><span class="value" id="time">00:00</span></div>
+  <div class="row"><span class="label" id="fuelText">FUEL 100%</span> <span id="fuelBar"><span id="fuelFill" class="fill"></span></span></div>
+</div>
+
+<div id="hudBottom" class="panel">
+  <div class="gaugeBox"><canvas id="horizon" width="170" height="170"></canvas><div class="label">ATTITUDE</div></div>
+  <div class="gaugeBox"><div class="label">THROTTLE</div><div id="throttleBar"><div id="throttleFill"></div></div></div>
+</div>
+<canvas id="compass" width="360" height="30"></canvas>
+
+<div id="banner"></div>
+<div id="warn"></div>
+
+<div id="titleScreen" class="overlay">
+  <div class="card">
+    <h1>AERORIDGE</h1>
+    <div class="tag">CANYON RUN &nbsp;•&nbsp; A FLIGHT GAME</div>
+    <p>Take off from Ridgefield strip, thread your tourer through <b>11 glowing rings</b>
+    down the canyon valley, then bring her home and land on the runway — before the fuel runs dry.
+    Low and fast scores the rings; gentle and slow wins the landing.</p>
+    <div class="controls">
+      <b>W / S</b> or <b>↑ / ↓</b> — pitch &nbsp;•&nbsp; <b>A / D</b> or <b>← / →</b> — bank &amp; turn<br>
+      <b>Mouse</b> — steer toward the pointer &nbsp;•&nbsp; <b>Wheel</b> or <b>Shift / Ctrl</b> — throttle<br>
+      <b>Space</b> — airbrake &nbsp;•&nbsp; <b>P</b> — pause &nbsp;•&nbsp; <b>M</b> — sound &nbsp;•&nbsp; <b>R</b> — restart
+    </div>
+    <button id="startBtn">START ENGINE — TAKE OFF</button>
+    <p style="font-size:13px;color:#9fc3e8">Keyboard and mouse. No downloads, no sign-up — just fly.</p>
+  </div>
+</div>
+
+<div id="crashScreen" class="overlay">
+  <div class="card">
+    <h2>CRASHED</h2>
+    <p id="crashText">You hit the ground too hard.</p>
+    <p class="score" id="crashScore">SCORE 0</p>
+    <button id="restartBtn">FLY AGAIN (R)</button>
+  </div>
+</div>
+
+<div id="landScreen" class="overlay">
+  <div class="card">
+    <h2 id="landTitle">TOUCHDOWN — MISSION COMPLETE!</h2>
+    <p id="landText">MISSION COMPLETE — all 11 rings, safe on the runway.</p>
+    <p class="score" id="landScore">SCORE 0</p>
+    <button id="againBtn">FLY AGAIN (R)</button>
+  </div>
+</div>
+
+<div id="pauseScreen" class="overlay">
+  <div class="card">
+    <h2>PAUSED</h2>
+    <p>Press P to keep flying.</p>
+  </div>
+</div>
+
+<p id="status" role="status" aria-live="polite"></p>
+
+<script src="./vendor/three.min.js"></script>
+<script src="./src/config.js"></script>
+<script src="./src/noise.js"></script>
+<script src="./src/terrain.js"></script>
+<script src="./src/plane.js"></script>
+<script src="./src/rings.js"></script>
+<script src="./src/hud.js"></script>
+<script src="./src/input.js"></script>
+<script src="./src/audio.js"></script>
+<script src="./src/shots.js"></script>
+<script src="./src/main.js"></script>
+<script>AR.boot();</script>
+</body>
+</html>
